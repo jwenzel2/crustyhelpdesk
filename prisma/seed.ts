@@ -1,9 +1,12 @@
 // Run with: npx tsx prisma/seed.ts
 // Requires: prisma generate to have been run first
+import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
+});
 
 async function main() {
   const existing = await prisma.user.findUnique({
