@@ -283,30 +283,10 @@ if ($allPassed) {
 // ---------------------------------------------------------------------------
 
 if ($allPassed) {
-    // Clean up any stale migration_lock.toml from a previous provider (e.g. sqlite)
-    $lockFile = $projectRoot . DIRECTORY_SEPARATOR . 'prisma' . DIRECTORY_SEPARATOR
-              . 'migrations' . DIRECTORY_SEPARATOR . 'migration_lock.toml';
-    if (file_exists($lockFile)) {
-        $lockContents = file_get_contents($lockFile);
-        if (str_contains($lockContents, 'provider = "sqlite"')) {
-            // Provider mismatch — wipe the migrations directory so Prisma starts fresh
-            $migrationsDir = $projectRoot . DIRECTORY_SEPARATOR . 'prisma' . DIRECTORY_SEPARATOR . 'migrations';
-            $files = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($migrationsDir, RecursiveDirectoryIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::CHILD_FIRST
-            );
-            foreach ($files as $file) {
-                $file->isDir() ? rmdir($file->getRealPath()) : unlink($file->getRealPath());
-            }
-        }
-    }
-
-    $migrate = run_command("cd \"{$projectRoot}\" && npx prisma migrate dev --name init");
+    // Use "migrate deploy" — applies pre-built migrations without needing
+    // a shadow database (which requires CREATE DATABASE privileges).
+    $migrate = run_command("cd \"{$projectRoot}\" && npx prisma migrate deploy");
     $migrateOk = $migrate['code'] === 0;
-
-    if (!$migrateOk && stripos($migrate['output'], 'already in sync') !== false) {
-        $migrateOk = true;
-    }
 
     $steps[] = [
         'name'   => 'Database migration',
