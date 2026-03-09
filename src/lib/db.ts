@@ -1,5 +1,5 @@
 import { PrismaClient } from "@/generated/prisma";
-import { PrismaMySQL } from "@prisma/adapter-mysql";
+import { PrismaMySql2 } from "@prisma/adapter-mysql2";
 import mysql from "mysql2/promise";
 
 const globalForPrisma = globalThis as unknown as {
@@ -8,7 +8,7 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const pool = mysql.createPool(process.env.DATABASE_URL!);
-  const adapter = new PrismaMySQL(pool);
+  const adapter = new PrismaMySql2(pool);
   return new PrismaClient({ adapter });
 }
 
