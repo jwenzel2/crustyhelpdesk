@@ -6,7 +6,6 @@
  * DELETE THIS FILE after installation is complete.
  */
 
-// Prevent timeout on slow operations
 set_time_limit(300);
 
 // ---------------------------------------------------------------------------
@@ -21,13 +20,25 @@ function run_command(string $cmd): array {
 }
 
 function version_from_output(string $raw): string {
-    // Strip leading 'v' (e.g. "v20.11.0" → "20.11.0")
     return ltrim(trim($raw), 'vV');
 }
 
 function check_icon(bool $ok): string {
     return $ok ? '<span style="color:green;font-weight:bold;">PASS</span>'
                : '<span style="color:red;font-weight:bold;">FAIL</span>';
+}
+
+function parse_database_url(string $url): ?array {
+    // mysql://user:pass@host:port/dbname
+    $pattern = '#^mysql://([^:]+):([^@]*)@([^:/?]+)(?::(\d+))?/(.+)$#';
+    if (!preg_match($pattern, $url, $m)) return null;
+    return [
+        'user' => $m[1],
+        'pass' => $m[2],
+        'host' => $m[3],
+        'port' => $m[4] ?: '3306',
+        'db'   => $m[5],
+    ];
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +91,6 @@ $envFile   = $projectRoot . DIRECTORY_SEPARATOR . '.env';
 $envExists = file_exists($envFile);
 
 if (!$envExists) {
-    // Try to copy from .env.example
     $exampleFile = $projectRoot . DIRECTORY_SEPARATOR . '.env.example';
     if (file_exists($exampleFile)) {
         $envExists = copy($exampleFile, $envFile);
@@ -97,7 +107,67 @@ $steps[] = [
 if (!$envExists) $allPassed = false;
 
 // ---------------------------------------------------------------------------
-// Step 4 — Check package.json
+// Step 4 — Check MariaDB/MySQL connectivity
+// ---------------------------------------------------------------------------
+
+$dbOk = false;
+$dbDetail = 'Skipped (no .env)';
+
+if ($envExists) {
+    $envContents = file_get_contents($envFile);
+    $dbUrl = '';
+    foreach (explode("\n", $envContents) as $line) {
+        $line = trim($line);
+        if (str_starts_with($line, 'DATABASE_URL=')) {
+            $dbUrl = trim(substr($line, strlen('DATABASE_URL=')), '"\'');
+            break;
+        }
+    }
+
+    if (empty($dbUrl)) {
+        $dbDetail = 'DATABASE_URL not found in .env';
+    } else {
+        $parsed = parse_database_url($dbUrl);
+        if (!$parsed) {
+            $dbDetail = "Cannot parse DATABASE_URL. Expected format: mysql://user:pass@host:port/dbname";
+        } elseif (!extension_loaded('mysqli')) {
+            // Fall back: just report the parsed values, can't test connectivity without mysqli
+            $dbDetail = "PHP mysqli extension not loaded — cannot verify connectivity. "
+                      . "Parsed: {$parsed['user']}@{$parsed['host']}:{$parsed['port']}/{$parsed['db']}. "
+                      . "Prisma will attempt the connection during migration.";
+            $dbOk = true; // Allow proceeding; Prisma will fail if DB is unreachable
+        } else {
+            mysqli_report(MYSQLI_REPORT_OFF);
+            $conn = @new mysqli($parsed['host'], $parsed['user'], $parsed['pass'], '', (int)$parsed['port']);
+            if ($conn->connect_error) {
+                $dbDetail = "Connection failed: {$conn->connect_error}. Check DATABASE_URL in .env.";
+            } else {
+                // Try to create the database if it doesn't exist
+                $dbName = $conn->real_escape_string($parsed['db']);
+                $conn->query("CREATE DATABASE IF NOT EXISTS `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+                if ($conn->select_db($parsed['db'])) {
+                    $serverInfo = $conn->server_info;
+                    $dbDetail = "Connected to {$parsed['host']}:{$parsed['port']} — Server: {$serverInfo}, Database: {$parsed['db']}";
+                    $dbOk = true;
+                } else {
+                    $dbDetail = "Connected to server but database '{$parsed['db']}' does not exist and could not be created.";
+                }
+                $conn->close();
+            }
+        }
+    }
+}
+
+$steps[] = [
+    'name'   => 'MariaDB/MySQL',
+    'ok'     => $dbOk,
+    'detail' => $dbDetail,
+];
+if (!$dbOk) $allPassed = false;
+
+// ---------------------------------------------------------------------------
+// Step 5 — Check package.json
 // ---------------------------------------------------------------------------
 
 $pkgJson = file_exists($projectRoot . DIRECTORY_SEPARATOR . 'package.json');
@@ -118,7 +188,7 @@ if (!$allPassed) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — npm install (if node_modules missing)
+// Step 6 — npm install (if node_modules missing)
 // ---------------------------------------------------------------------------
 
 $nodeModulesExists = is_dir($projectRoot . DIRECTORY_SEPARATOR . 'node_modules');
@@ -143,7 +213,7 @@ if ($nodeModulesExists) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 6 — Prisma generate
+// Step 7 — Prisma generate
 // ---------------------------------------------------------------------------
 
 if ($allPassed) {
@@ -160,15 +230,13 @@ if ($allPassed) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 7 — Prisma migrate (create database + tables)
+// Step 8 — Prisma migrate (create tables)
 // ---------------------------------------------------------------------------
 
 if ($allPassed) {
     $migrate = run_command("cd \"{$projectRoot}\" && npx prisma migrate dev --name init");
-    // migrate dev may return 0 even if migration already applied — that's fine
     $migrateOk = $migrate['code'] === 0;
 
-    // Check if it says "already in sync" — still a success
     if (!$migrateOk && stripos($migrate['output'], 'already in sync') !== false) {
         $migrateOk = true;
     }
@@ -184,7 +252,7 @@ if ($allPassed) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 8 — Seed admin user
+// Step 9 — Seed admin user
 // ---------------------------------------------------------------------------
 
 if ($allPassed) {

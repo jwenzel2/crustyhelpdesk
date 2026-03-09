@@ -1,12 +1,13 @@
 // Run with: npx tsx prisma/seed.ts
-// Requires: prisma generate to have been run first
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client.js";
+import { PrismaMySQL } from "@prisma/adapter-mysql";
+import mysql from "mysql2/promise";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL,
-});
+const pool = mysql.createPool(process.env.DATABASE_URL!);
+const adapter = new PrismaMySQL(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const existing = await prisma.user.findUnique({
@@ -38,4 +39,7 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    await prisma.$disconnect();
+    await pool.end();
+  });
