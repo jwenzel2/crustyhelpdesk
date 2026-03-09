@@ -3,6 +3,7 @@ import type { NextAuthConfig } from "next-auth";
 // Shared auth config — safe to import in Edge Runtime (middleware).
 // Does NOT include providers that depend on Node.js packages (db, bcrypt).
 export const authConfig: NextAuthConfig = {
+  secret: process.env.AUTH_SECRET,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
