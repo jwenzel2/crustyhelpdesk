@@ -142,16 +142,27 @@ if ($envExists) {
             if ($conn->connect_error) {
                 $dbDetail = "Connection failed: {$conn->connect_error}. Check DATABASE_URL in .env.";
             } else {
-                // Try to create the database if it doesn't exist
+                $serverInfo = $conn->server_info;
                 $dbName = $conn->real_escape_string($parsed['db']);
-                $conn->query("CREATE DATABASE IF NOT EXISTS `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 
-                if ($conn->select_db($parsed['db'])) {
-                    $serverInfo = $conn->server_info;
-                    $dbDetail = "Connected to {$parsed['host']}:{$parsed['port']} — Server: {$serverInfo}, Database: {$parsed['db']}";
-                    $dbOk = true;
+                // Check if database already exists
+                $dbExisted = (bool)$conn->select_db($parsed['db']);
+
+                if (!$dbExisted) {
+                    // Create the database
+                    $created = $conn->query("CREATE DATABASE `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                    if ($created && $conn->select_db($parsed['db'])) {
+                        $dbDetail = "Connected to {$parsed['host']}:{$parsed['port']} (Server: {$serverInfo}). "
+                                  . "Database '{$parsed['db']}' did not exist — created successfully.";
+                        $dbOk = true;
+                    } else {
+                        $dbDetail = "Connected to server but could not create database '{$parsed['db']}': {$conn->error}. "
+                                  . "Check that the MySQL user has CREATE privileges.";
+                    }
                 } else {
-                    $dbDetail = "Connected to server but database '{$parsed['db']}' does not exist and could not be created.";
+                    $dbDetail = "Connected to {$parsed['host']}:{$parsed['port']} (Server: {$serverInfo}). "
+                              . "Database '{$parsed['db']}' exists.";
+                    $dbOk = true;
                 }
                 $conn->close();
             }
@@ -160,7 +171,7 @@ if ($envExists) {
 }
 
 $steps[] = [
-    'name'   => 'MariaDB/MySQL',
+    'name'   => 'MariaDB/MySQL database',
     'ok'     => $dbOk,
     'detail' => $dbDetail,
 ];
