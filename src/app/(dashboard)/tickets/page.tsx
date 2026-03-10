@@ -2,20 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
 type Ticket = {
   id: string;
   title: string;
   clientMachine: string;
   status: string;
+  escalationLevel: number;
   createdAt: string;
   createdBy: { displayName: string };
+  assignedTo: { displayName: string } | null;
 };
 
 const statusColors: Record<string, string> = {
   OPEN: "bg-blue-100 text-blue-800",
   IN_PROGRESS: "bg-yellow-100 text-yellow-800",
   AWAITING_LOGS: "bg-purple-100 text-purple-800",
+  ESCALATED: "bg-orange-100 text-orange-800",
   RESOLVED: "bg-green-100 text-green-800",
   CLOSED: "bg-gray-100 text-gray-800",
 };
@@ -23,6 +27,9 @@ const statusColors: Record<string, string> = {
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const isClient = role === "CLIENT";
 
   useEffect(() => {
     fetch("/api/tickets")
@@ -38,7 +45,9 @@ export default function TicketsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Tickets</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {isClient ? "My Tickets" : "Tickets"}
+        </h1>
         <Link
           href="/tickets/new"
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
@@ -63,6 +72,16 @@ export default function TicketsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
+                {!isClient && (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Level
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Assigned To
+                    </th>
+                  </>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created By
                 </th>
@@ -89,9 +108,19 @@ export default function TicketsPage() {
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[ticket.status] || "bg-gray-100"}`}
                     >
-                      {ticket.status.replace("_", " ")}
+                      {ticket.status.replace(/_/g, " ")}
                     </span>
                   </td>
+                  {!isClient && (
+                    <>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        L{ticket.escalationLevel}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {ticket.assignedTo?.displayName || "Unassigned"}
+                      </td>
+                    </>
+                  )}
                   <td className="px-6 py-4 text-sm text-gray-700">
                     {ticket.createdBy.displayName}
                   </td>

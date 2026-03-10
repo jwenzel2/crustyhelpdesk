@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
 }
 
 model User {
@@ -13,31 +13,55 @@ model User {
   displayName  String
   email        String   @unique
   passwordHash String?
-  role         String   @default("TECHNICIAN") // ADMIN | TECHNICIAN
+  role         String   @default("CLIENT") // CLIENT | LEVEL_1 | LEVEL_2 | LEVEL_3 | ADMIN
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tickets Ticket[]
+  tickets         Ticket[]  @relation("CreatedBy")
+  assignedTickets Ticket[]  @relation("AssignedTo")
+  comments        Comment[]
 }
 
 model Ticket {
-  id             String   @id @default(cuid())
-  title          String   @db.VarChar(200)
-  description    String   @db.Text
-  clientMachine  String   @db.VarChar(255)
-  status         String   @default("OPEN") // OPEN | IN_PROGRESS | AWAITING_LOGS | RESOLVED | CLOSED
-  issueTimeStart DateTime
-  issueTimeEnd   DateTime
-  reportedAt     DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  clientMachine   String
+  status          String   @default("OPEN") // OPEN | IN_PROGRESS | AWAITING_LOGS | ESCALATED | RESOLVED | CLOSED
+  escalationLevel Int      @default(1) // 1 = L1, 2 = L2, 3 = L3
+  issueTimeStart  DateTime
+  issueTimeEnd    DateTime
+  reportedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+
+  assignedToId String?
+  assignedTo   User?  @relation("AssignedTo", fields: [assignedToId], references: [id])
 
   logRequests LogRequest[]
+  comments    Comment[]
 
   @@index([createdById])
+  @@index([assignedToId])
+  @@index([escalationLevel])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+
+  authorId String?
+  author   User?  @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
 }
 
 model LogRequest {
@@ -46,7 +70,7 @@ model LogRequest {
   logType        String   // Application | System | Security | Setup
   timeRangeStart DateTime
   timeRangeEnd   DateTime
-  errorMessage   String?  @db.Text
+  errorMessage   String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -63,9 +87,9 @@ model LogEntry {
   eventId   Int
   level     String
   source    String
-  message   String   @db.Text
+  message   String
   timestamp DateTime
-  rawXml    String?  @db.LongText
+  rawXml    String?
   createdAt DateTime @default(now())
 
   logRequestId String
