@@ -405,7 +405,7 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Crop Profile Photo</h3>
-            <div className="flex justify-center mb-4 max-h-[60vh] overflow-auto">
+            <div className="flex justify-center mb-4">
               <ReactCrop
                 crop={crop}
                 onChange={(c) => setCrop(c)}
@@ -418,7 +418,7 @@ export default function ProfilePage() {
                   src={imageSrc}
                   alt="Crop preview"
                   onLoad={onImageLoad}
-                  style={{ maxHeight: "60vh" }}
+                  style={{ maxHeight: "60vh", maxWidth: "100%", display: "block" }}
                 />
               </ReactCrop>
             </div>
