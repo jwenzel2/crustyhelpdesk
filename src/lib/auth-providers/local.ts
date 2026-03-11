@@ -27,6 +27,7 @@ export const localProvider = Credentials({
       id: user.id,
       name: user.displayName,
       email: user.email,
+      image: user.avatarUrl,
       role: user.role,
     };
   },

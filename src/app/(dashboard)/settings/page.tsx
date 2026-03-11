@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+// ─── Types ────────────────────────────────────────────────────
+
 interface User {
   id: string;
   username: string;
@@ -19,7 +21,12 @@ interface UserForm {
   role: string;
 }
 
-const emptyForm: UserForm = {
+interface Category {
+  id: string;
+  name: string;
+}
+
+const emptyUserForm: UserForm = {
   username: "",
   displayName: "",
   email: "",
@@ -27,13 +34,48 @@ const emptyForm: UserForm = {
   role: "CLIENT",
 };
 
+type Tab = "users" | "categories";
+
+// ─── Component ────────────────────────────────────────────────
+
 export default function SettingsPage() {
+  const [tab, setTab] = useState<Tab>("users");
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">Settings</h1>
+
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200 mb-6">
+        {(["users", "categories"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${
+              tab === t
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {t === "users" ? "Users" : "Categories"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "users" ? <UsersTab /> : <CategoriesTab />}
+    </div>
+  );
+}
+
+// ─── Users Tab ────────────────────────────────────────────────
+
+function UsersTab() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<UserForm>(emptyForm);
+  const [form, setForm] = useState<UserForm>(emptyUserForm);
   const [submitting, setSubmitting] = useState(false);
 
   async function fetchUsers() {
@@ -60,7 +102,7 @@ export default function SettingsPage() {
 
   function openCreate() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(emptyUserForm);
     setShowForm(true);
     setError("");
   }
@@ -81,7 +123,7 @@ export default function SettingsPage() {
   function cancelForm() {
     setShowForm(false);
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(emptyUserForm);
     setError("");
   }
 
@@ -92,7 +134,6 @@ export default function SettingsPage() {
 
     try {
       if (editingId) {
-        // Update
         const body: Record<string, string> = {};
         if (form.displayName) body.displayName = form.displayName;
         if (form.email) body.email = form.email;
@@ -110,7 +151,6 @@ export default function SettingsPage() {
           throw new Error(data.error || "Failed to update user");
         }
       } else {
-        // Create
         const res = await fetch("/api/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -152,8 +192,8 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
         {!showForm && !loading && !error?.includes("permission") && (
           <button
             onClick={openCreate}
@@ -330,6 +370,216 @@ export default function SettingsPage() {
             </table>
           </div>
         )
+      )}
+    </div>
+  );
+}
+
+// ─── Categories Tab ───────────────────────────────────────────
+
+function CategoriesTab() {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function fetchCategories() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/categories");
+      if (!res.ok) throw new Error("Failed to load categories");
+      setCategories(await res.json());
+    } catch {
+      setError("Failed to load categories.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  function openCreate() {
+    setEditingId(null);
+    setName("");
+    setShowForm(true);
+    setError("");
+  }
+
+  function openEdit(cat: Category) {
+    setEditingId(cat.id);
+    setName(cat.name);
+    setShowForm(true);
+    setError("");
+  }
+
+  function cancelForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setName("");
+    setError("");
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+
+    try {
+      if (editingId) {
+        const res = await fetch(`/api/categories/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to update category");
+        }
+      } else {
+        const res = await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to create category");
+        }
+      }
+
+      cancelForm();
+      fetchCategories();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(cat: Category) {
+    if (!confirm(`Delete category "${cat.name}"?`)) return;
+
+    setError("");
+    try {
+      const res = await fetch(`/api/categories/${cat.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete category");
+      }
+      fetchCategories();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">Category Management</h2>
+        {!showForm && !loading && (
+          <button
+            onClick={openCreate}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700"
+          >
+            Add Category
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+          {error}
+        </div>
+      )}
+
+      {showForm && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {editingId ? "Edit Category" : "Create Category"}
+          </h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-black"
+                required
+                maxLength={100}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitting ? "Saving..." : editingId ? "Update" : "Create"}
+              </button>
+              <button
+                type="button"
+                onClick={cancelForm}
+                className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <p className="text-gray-500">Loading categories...</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-700">Name</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {categories.map((cat) => (
+                <tr key={cat.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-900 font-medium">{cat.name}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => openEdit(cat)}
+                      className="text-blue-600 hover:text-blue-800 text-sm mr-3"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(cat)}
+                      className="text-red-600 hover:text-red-800 text-sm"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {categories.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="px-4 py-6 text-center text-gray-500">
+                    No categories yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

@@ -7,7 +7,7 @@ export const loginSchema = z.object({
 });
 
 export const createTicketSchema = z.object({
-  title: z.string().min(1, "Title is required").max(200),
+  title: z.string().min(1, "Subject is required").max(200),
   description: z.string().min(1, "Description is required"),
   clientMachine: z
     .string()
@@ -19,6 +19,8 @@ export const createTicketSchema = z.object({
     ),
   issueTimeStart: z.string().datetime({ message: "Valid start time required" }),
   issueTimeEnd: z.string().datetime({ message: "Valid end time required" }),
+  categoryId: z.string().min(1, "Category is required"),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
 });
 
 export const updateTicketSchema = z.object({
@@ -29,6 +31,8 @@ export const updateTicketSchema = z.object({
     .optional(),
   escalationLevel: z.number().int().min(1).max(3).optional(),
   assignedToId: z.string().nullable().optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  categoryId: z.string().min(1).optional(),
 });
 
 export const createUserSchema = z.object({
@@ -48,6 +52,21 @@ export const updateUserSchema = z.object({
   email: z.string().email().optional(),
   password: z.string().min(6).optional(),
   role: z.enum(ROLES).optional(),
+});
+
+export const createCategorySchema = z.object({
+  name: z.string().min(1, "Category name is required").max(100),
+});
+
+export const updateCategorySchema = z.object({
+  name: z.string().min(1).max(100),
+});
+
+export const updateProfileSchema = z.object({
+  displayName: z.string().min(1, "Name is required").max(100),
+  email: z.string().email("Valid email is required"),
+  phoneNumber: z.string().max(20).optional().or(z.literal("")),
+  jobRole: z.string().max(100).optional().or(z.literal("")),
 });
 
 export const createCommentSchema = z.object({

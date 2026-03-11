@@ -25,7 +25,19 @@ export function Sidebar() {
   const initials = getInitials(displayName);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch avatar URL from profile API so it stays current without re-login
+  useEffect(() => {
+    if (!session?.user) return;
+    fetch("/api/profile")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.avatarUrl) setAvatarUrl(data.avatarUrl);
+      })
+      .catch(() => {});
+  }, [session?.user, pathname]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -46,14 +58,16 @@ export function Sidebar() {
     ...(role === "ADMIN" ? [{ href: "/settings", label: "Settings" }] : []),
   ];
 
+  const avatar = avatarUrl || user?.image;
+
   return (
-    <aside className="w-56 bg-gray-900 text-white flex flex-col min-h-screen">
+    <aside className="w-56 bg-gray-900 text-white flex flex-col h-screen sticky top-0">
       <div className="p-4 border-b border-gray-700">
         <Link href="/tickets" className="text-lg font-bold">
           CrustyHelpdesk
         </Link>
       </div>
-      <nav className="flex-1 p-2">
+      <nav className="flex-1 p-2 overflow-y-auto">
         {navItems.map((item) => {
           const active = pathname === item.href;
           return (
@@ -73,14 +87,14 @@ export function Sidebar() {
       </nav>
 
       {/* User profile section */}
-      <div className="border-t border-gray-700" ref={menuRef}>
+      <div className="border-t border-gray-700 flex-shrink-0" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((prev) => !prev)}
           className="w-full flex items-center gap-3 p-4 hover:bg-gray-800 transition-colors"
         >
-          {user?.image ? (
+          {avatar ? (
             <img
-              src={user.image}
+              src={avatar}
               alt={displayName}
               className="w-8 h-8 rounded-full object-cover flex-shrink-0"
             />

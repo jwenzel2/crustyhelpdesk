@@ -54,6 +54,7 @@ export async function GET() {
     include: {
       createdBy: { select: { displayName: true } },
       assignedTo: { select: { displayName: true } },
+      category: { select: { id: true, name: true } },
     },
   });
 
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { title, description, clientMachine, issueTimeStart, issueTimeEnd } =
+  const { title, description, clientMachine, issueTimeStart, issueTimeEnd, categoryId, priority } =
     parsed.data;
 
   if (new Date(issueTimeEnd) <= new Date(issueTimeStart)) {
@@ -94,6 +95,8 @@ export async function POST(request: NextRequest) {
       issueTimeStart: new Date(issueTimeStart),
       issueTimeEnd: new Date(issueTimeEnd),
       createdById: session.user.id,
+      categoryId,
+      priority,
     },
   });
 

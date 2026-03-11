@@ -20,6 +20,7 @@ type Ticket = {
   description: string;
   clientMachine: string;
   status: string;
+  priority: string;
   escalationLevel: number;
   issueTimeStart: string;
   issueTimeEnd: string;
@@ -27,6 +28,7 @@ type Ticket = {
   createdAt: string;
   createdBy: { displayName: string };
   assignedTo: { id: string; displayName: string } | null;
+  category: { id: string; name: string } | null;
   logRequests: {
     id: string;
     logType: string;
@@ -34,6 +36,12 @@ type Ticket = {
     createdAt: string;
     logEntries: { id: string; eventId: number; level: string; source: string; message: string; timestamp: string }[];
   }[];
+};
+
+const priorityColors: Record<string, string> = {
+  LOW: "bg-green-100 text-green-800",
+  MEDIUM: "bg-yellow-100 text-yellow-800",
+  HIGH: "bg-red-100 text-red-800",
 };
 
 const statusColors: Record<string, string> = {
@@ -225,6 +233,18 @@ export default function TicketDetailPage() {
 
         {/* Info grid */}
         <div className="grid grid-cols-2 gap-6 mb-6">
+          <div>
+            <h3 className="text-sm font-medium text-gray-500">Category</h3>
+            <p className="mt-1 text-gray-900">{ticket.category?.name || "—"}</p>
+          </div>
+          <div>
+            <h3 className="text-sm font-medium text-gray-500">Priority</h3>
+            <span
+              className={`inline-flex mt-1 px-2 py-1 text-xs font-semibold rounded-full ${priorityColors[ticket.priority] || "bg-gray-100"}`}
+            >
+              {ticket.priority}
+            </span>
+          </div>
           <div>
             <h3 className="text-sm font-medium text-gray-500">Client Machine</h3>
             <p className="mt-1 font-mono text-gray-900">{ticket.clientMachine}</p>

@@ -16,23 +16,33 @@ async function main() {
     });
 
     if (existing) {
-      console.log("Admin user already exists, skipping seed.");
-      return;
+      console.log("Admin user already exists, skipping user seed.");
+    } else {
+      const passwordHash = await bcrypt.hash("admin", 10);
+
+      await prisma.user.create({
+        data: {
+          username: "admin",
+          displayName: "Administrator",
+          email: "admin@localhost",
+          passwordHash,
+          role: "ADMIN",
+        },
+      });
+
+      console.log("Seeded admin user (username: admin, password: admin)");
     }
 
-    const passwordHash = await bcrypt.hash("admin", 10);
-
-    await prisma.user.create({
-      data: {
-        username: "admin",
-        displayName: "Administrator",
-        email: "admin@localhost",
-        passwordHash,
-        role: "ADMIN",
-      },
-    });
-
-    console.log("Seeded admin user (username: admin, password: admin)");
+    // Seed default categories
+    const defaultCategories = ["Hardware", "Software", "Network", "Account Access", "General"];
+    for (const name of defaultCategories) {
+      await prisma.category.upsert({
+        where: { name },
+        update: {},
+        create: { name },
+      });
+    }
+    console.log(`Seeded ${defaultCategories.length} default categories`);
   } finally {
     await prisma.$disconnect();
   }

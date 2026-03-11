@@ -21,6 +21,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     include: {
       createdBy: { select: { displayName: true } },
       assignedTo: { select: { id: true, displayName: true } },
+      category: { select: { id: true, name: true } },
       logRequests: {
         include: { logEntries: true },
         orderBy: { createdAt: "desc" },
@@ -148,6 +149,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (parsed.data.description) data.description = parsed.data.description;
     if (parsed.data.escalationLevel) data.escalationLevel = parsed.data.escalationLevel;
     if (parsed.data.assignedToId !== undefined) data.assignedToId = parsed.data.assignedToId;
+    if (parsed.data.priority) data.priority = parsed.data.priority;
+    if (parsed.data.categoryId) data.categoryId = parsed.data.categoryId;
   }
 
   const ticket = await prisma.ticket.update({
@@ -155,6 +158,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     data,
     include: {
       assignedTo: { select: { id: true, displayName: true } },
+      category: { select: { id: true, name: true } },
     },
   });
 

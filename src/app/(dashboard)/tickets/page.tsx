@@ -9,10 +9,18 @@ type Ticket = {
   title: string;
   clientMachine: string;
   status: string;
+  priority: string;
   escalationLevel: number;
   createdAt: string;
   createdBy: { displayName: string };
   assignedTo: { displayName: string } | null;
+  category: { id: string; name: string } | null;
+};
+
+const priorityColors: Record<string, string> = {
+  LOW: "bg-green-100 text-green-800",
+  MEDIUM: "bg-yellow-100 text-yellow-800",
+  HIGH: "bg-red-100 text-red-800",
 };
 
 const statusColors: Record<string, string> = {
@@ -64,7 +72,13 @@ export default function TicketsPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Title
+                  Subject
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Category
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Priority
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Machine
@@ -100,6 +114,16 @@ export default function TicketsPage() {
                     >
                       {ticket.title}
                     </Link>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {ticket.category?.name || "—"}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${priorityColors[ticket.priority] || "bg-gray-100"}`}
+                    >
+                      {ticket.priority}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700 font-mono">
                     {ticket.clientMachine}
