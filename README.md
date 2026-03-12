@@ -2,18 +2,28 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+First, install npm:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
+Second, generate prisma
+```bash
+npx prisma generate
+```
+Third build the app
+```bash
+npm run build
+```
+Now initialize the database and add the initial admin user with admin password
 
+```bash
+npm run db;setup
+```
+Final run the server
+```bash
+npm run start
+```
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
