@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
+import { useSiteSettings } from "@/components/site-settings-context";
 
 function getInitials(name: string): string {
   return name
@@ -24,6 +25,7 @@ export function Sidebar() {
   const displayName = user?.name ?? "User";
   const initials = getInitials(displayName);
 
+  const { siteName } = useSiteSettings();
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -69,7 +71,7 @@ export function Sidebar() {
     <aside className="w-56 bg-gray-900 text-white flex flex-col h-screen sticky top-0">
       <div className="p-4 border-b border-gray-700">
         <Link href="/tickets" className="text-lg font-bold">
-          CrustyHelpdesk
+          {siteName}
         </Link>
       </div>
       <nav className="flex-1 p-2 overflow-y-auto">

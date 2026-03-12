@@ -126,3 +126,9 @@ model LogEntry {
 
   @@index([logRequestId])
 }
+
+model SiteSettings {
+  id    String @id @default("singleton")
+  key   String @unique
+  value String
+}

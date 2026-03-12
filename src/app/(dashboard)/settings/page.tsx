@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSiteSettings } from "@/components/site-settings-context";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -34,7 +35,13 @@ const emptyUserForm: UserForm = {
   role: "CLIENT",
 };
 
-type Tab = "users" | "categories";
+type Tab = "users" | "categories" | "site";
+
+const TAB_LABELS: Record<Tab, string> = {
+  users: "Users",
+  categories: "Categories",
+  site: "Site",
+};
 
 // ─── Component ────────────────────────────────────────────────
 
@@ -47,7 +54,7 @@ export default function SettingsPage() {
 
       {/* Tab bar */}
       <div className="flex border-b border-gray-200 mb-6">
-        {(["users", "categories"] as Tab[]).map((t) => (
+        {(["users", "categories", "site"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -57,12 +64,14 @@ export default function SettingsPage() {
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            {t === "users" ? "Users" : "Categories"}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
-      {tab === "users" ? <UsersTab /> : <CategoriesTab />}
+      {tab === "users" && <UsersTab />}
+      {tab === "categories" && <CategoriesTab />}
+      {tab === "site" && <SiteTab />}
     </div>
   );
 }
@@ -581,6 +590,108 @@ function CategoriesTab() {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Site Tab ─────────────────────────────────────────────────
+
+function SiteTab() {
+  const { siteName, refreshSiteSettings } = useSiteSettings();
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.siteName) setName(data.siteName);
+      })
+      .catch(() => setError("Failed to load settings."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteName: name }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update settings");
+      }
+
+      setSuccess("Site name updated.");
+      refreshSiteSettings();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <p className="text-gray-500">Loading settings...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Site Settings</h2>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-4">
+          {success}
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Site Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-black"
+              required
+              maxLength={100}
+              placeholder="CrustyHelpdesk"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Displayed in the sidebar, login page, and browser tab.
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={submitting || name === siteName}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
+          >
+            {submitting ? "Saving..." : "Save"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

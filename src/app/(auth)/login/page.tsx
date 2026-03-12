@@ -3,11 +3,13 @@
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
+import { useSiteSettings } from "@/components/site-settings-context";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/tickets";
+  const { siteName } = useSiteSettings();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,7 +40,7 @@ function LoginForm() {
       <div className="w-full max-w-sm">
         <div className="bg-white rounded-lg shadow-md p-8">
           <h1 className="text-2xl font-bold text-center mb-6 text-gray-900">
-            CrustyHelpdesk
+            {siteName}
           </h1>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
