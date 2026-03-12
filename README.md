@@ -18,7 +18,7 @@ npm run build
 Now initialize the database and add the initial admin user with admin password
 
 ```bash
-npm run db;setup
+npm run db:setup
 ```
 Final run the server
 ```bash
