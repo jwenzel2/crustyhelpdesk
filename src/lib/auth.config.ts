@@ -28,8 +28,12 @@ export const authConfig: NextAuthConfig = {
       const isLoggedIn = !!auth?.user;
       const pathname = nextUrl.pathname;
 
-      // Allow auth routes
-      if (pathname.startsWith("/login") || pathname.startsWith("/api/auth")) {
+      // Allow auth routes and agent API routes (agent routes handle their own auth)
+      if (
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/api/auth") ||
+        pathname.startsWith("/api/agent")
+      ) {
         return true;
       }
 

@@ -1,0 +1,8 @@
+[server]
+url = "https://helpdesk.example.com"
+api_key = "cht_xxxxxxxxxxxx"
+poll_interval_secs = 30
+
+[agent]
+# Defaults to system hostname if omitted
+# machine_name = "WORKSTATION-01"

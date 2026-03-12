@@ -84,6 +84,7 @@ model LogRequest {
   id             String   @id @default(cuid())
   status         String   @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | FAILED
   logType        String   // Application | System | Security | Setup
+  machineName    String   // copied from ticket.clientMachine when request is created
   timeRangeStart DateTime
   timeRangeEnd   DateTime
   errorMessage   String?
@@ -96,6 +97,18 @@ model LogRequest {
   logEntries LogEntry[]
 
   @@index([ticketId])
+  @@index([machineName, status])
+}
+
+model AgentToken {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  machineName String
+  description String?
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([machineName])
 }
 
 model LogEntry {

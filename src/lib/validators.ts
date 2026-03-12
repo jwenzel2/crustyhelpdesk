@@ -73,6 +73,47 @@ export const createCommentSchema = z.object({
   body: z.string().min(1, "Comment cannot be empty").max(5000),
 });
 
+// ─── Log & Agent schemas ──────────────────────────────────────
+
+export const ALLOWED_LOG_TYPES = ["Application", "System", "Security", "Setup"] as const;
+
+export const createLogRequestSchema = z.object({
+  logTypes: z
+    .array(z.enum(ALLOWED_LOG_TYPES))
+    .min(1, "At least one log type is required")
+    .max(4),
+});
+
+export const agentResultSchema = z.object({
+  status: z.enum(["COMPLETED", "FAILED"]),
+  errorMessage: z.string().max(2000).optional(),
+  entries: z
+    .array(
+      z.object({
+        eventId: z.number().int(),
+        level: z.string().max(50),
+        source: z.string().max(500),
+        message: z.string().max(10000),
+        timestamp: z.string().datetime(),
+        rawXml: z.string().max(50000).optional(),
+      })
+    )
+    .max(10000)
+    .default([]),
+});
+
+export const createAgentTokenSchema = z.object({
+  machineName: z
+    .string()
+    .min(1, "Machine name is required")
+    .max(255)
+    .regex(
+      /^[a-zA-Z0-9._-]+$/,
+      "Machine name must contain only alphanumeric characters, dots, hyphens, and underscores"
+    ),
+  description: z.string().max(500).optional(),
+});
+
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;

@@ -55,7 +55,12 @@ export function Sidebar() {
   const navItems = [
     { href: "/tickets", label: "Tickets" },
     { href: "/tickets/new", label: "New Ticket" },
-    ...(role === "ADMIN" ? [{ href: "/settings", label: "Settings" }] : []),
+    ...(role === "ADMIN"
+      ? [
+          { href: "/settings", label: "Settings" },
+          { href: "/settings/agents", label: "Agent Tokens" },
+        ]
+      : []),
   ];
 
   const avatar = avatarUrl || user?.image;

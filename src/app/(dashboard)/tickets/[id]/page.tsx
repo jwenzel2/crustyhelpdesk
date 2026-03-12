@@ -89,6 +89,11 @@ export default function TicketDetailPage() {
   const [commentBody, setCommentBody] = useState("");
   const [postingComment, setPostingComment] = useState(false);
 
+  // Log request state
+  const [showLogForm, setShowLogForm] = useState(false);
+  const [selectedLogTypes, setSelectedLogTypes] = useState<string[]>([]);
+  const [requestingLogs, setRequestingLogs] = useState(false);
+
   useEffect(() => {
     fetch(`/api/tickets/${id}`)
       .then((r) => {
@@ -107,6 +112,22 @@ export default function TicketDetailPage() {
       .then(setComments)
       .catch(() => setComments([]));
   }, [id]);
+
+  // Auto-refresh when log requests are pending or in-progress
+  useEffect(() => {
+    if (!ticket) return;
+    const hasPending = ticket.logRequests.some(
+      (lr) => lr.status === "PENDING" || lr.status === "IN_PROGRESS"
+    );
+    if (!hasPending) return;
+
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/tickets/${id}`);
+      if (res.ok) setTicket(await res.json());
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [ticket, id]);
 
   // Fetch techs for assignment (staff only)
   useEffect(() => {
@@ -494,23 +515,164 @@ export default function TicketDetailPage() {
           ) : (
             <div className="space-y-2">
               {ticket.logRequests.map((lr) => (
-                <div key={lr.id} className="bg-gray-50 rounded p-3 text-sm">
-                  <span className="font-medium">{lr.logType}</span> &mdash;{" "}
-                  <span className="text-gray-600">{lr.status}</span> &mdash;{" "}
-                  <span className="text-gray-500">{lr.logEntries.length} entries</span>
-                </div>
+                <LogRequestItem key={lr.id} logRequest={lr} />
               ))}
             </div>
           )}
-          <button
-            disabled
-            className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-md text-sm opacity-50 cursor-not-allowed"
-            title="Agent integration coming soon"
-          >
-            Request Logs (coming soon)
-          </button>
+
+          {/* Request Logs button — staff only */}
+          {!isClient && !isClosed && (
+            <div className="mt-3">
+              {showLogForm ? (
+                <div className="bg-purple-50 border border-purple-200 rounded-md p-4">
+                  <h4 className="text-sm font-medium text-purple-900 mb-2">
+                    Select log types to collect from {ticket.clientMachine}
+                  </h4>
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    {["Application", "System", "Security", "Setup"].map((lt) => (
+                      <label key={lt} className="flex items-center gap-1.5 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={selectedLogTypes.includes(lt)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedLogTypes((prev) => [...prev, lt]);
+                            } else {
+                              setSelectedLogTypes((prev) => prev.filter((t) => t !== lt));
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        {lt}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        if (selectedLogTypes.length === 0) return;
+                        setRequestingLogs(true);
+                        const res = await fetch(`/api/tickets/${id}/log-requests`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ logTypes: selectedLogTypes }),
+                        });
+                        if (res.ok) {
+                          // Refresh ticket data
+                          const full = await fetch(`/api/tickets/${id}`);
+                          if (full.ok) setTicket(await full.json());
+                          // Refresh comments
+                          const commentsRes = await fetch(`/api/tickets/${id}/comments`);
+                          if (commentsRes.ok) setComments(await commentsRes.json());
+                          setShowLogForm(false);
+                          setSelectedLogTypes([]);
+                        }
+                        setRequestingLogs(false);
+                      }}
+                      disabled={requestingLogs || selectedLogTypes.length === 0}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {requestingLogs ? "Requesting..." : "Submit Request"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowLogForm(false);
+                        setSelectedLogTypes([]);
+                      }}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowLogForm(true)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700"
+                >
+                  Request Logs
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Log Request Item ─────────────────────────────────────────
+
+const logStatusColors: Record<string, string> = {
+  PENDING: "bg-yellow-100 text-yellow-800",
+  IN_PROGRESS: "bg-blue-100 text-blue-800",
+  COMPLETED: "bg-green-100 text-green-800",
+  FAILED: "bg-red-100 text-red-800",
+};
+
+function LogRequestItem({
+  logRequest,
+}: {
+  logRequest: Ticket["logRequests"][number];
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="bg-gray-50 rounded p-3 text-sm">
+      <div
+        className="flex items-center justify-between cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{logRequest.logType}</span>
+          <span
+            className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${logStatusColors[logRequest.status] || "bg-gray-100"}`}
+          >
+            {logRequest.status.replace(/_/g, " ")}
+          </span>
+          <span className="text-gray-500">{logRequest.logEntries.length} entries</span>
+        </div>
+        <span className="text-gray-400 text-xs">
+          {expanded ? "collapse" : "expand"}
+        </span>
+      </div>
+      {expanded && logRequest.logEntries.length > 0 && (
+        <div className="mt-3 max-h-96 overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-200">
+              <tr>
+                <th className="text-left px-2 py-1">Time</th>
+                <th className="text-left px-2 py-1">Event ID</th>
+                <th className="text-left px-2 py-1">Level</th>
+                <th className="text-left px-2 py-1">Source</th>
+                <th className="text-left px-2 py-1">Message</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {logRequest.logEntries.map((entry) => (
+                <tr key={entry.id} className="hover:bg-gray-100">
+                  <td className="px-2 py-1 whitespace-nowrap">
+                    {new Date(entry.timestamp).toLocaleString()}
+                  </td>
+                  <td className="px-2 py-1">{entry.eventId}</td>
+                  <td className="px-2 py-1">{entry.level}</td>
+                  <td className="px-2 py-1">{entry.source}</td>
+                  <td className="px-2 py-1 max-w-md truncate" title={entry.message}>
+                    {entry.message}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {expanded && logRequest.logEntries.length === 0 && (
+        <p className="mt-2 text-gray-400 text-xs">
+          {logRequest.status === "FAILED"
+            ? "Collection failed."
+            : "No entries yet — waiting for agent."}
+        </p>
+      )}
     </div>
   );
 }
