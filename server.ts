@@ -6,10 +6,10 @@ import next from "next";
 import path from "path";
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOSTNAME || "0.0.0.0";
+const hostname = process.env.HOSTNAME || "localhost";
 const port = parseInt(process.env.PORT || "3000", 10);
 
-const certsDir = path.join(import.meta.dirname, "certs");
+const certsDir = path.join(__dirname, "certs");
 const keyPath = path.join(certsDir, "key.pem");
 const certPath = path.join(certsDir, "cert.pem");
 const caPath = path.join(certsDir, "ca.pem");
