@@ -25,6 +25,10 @@
 .DS_Store
 *.pem
 
+# SSL certificates
+/certs/*
+!/certs/README.md
+
 # debug
 npm-debug.log*
 yarn-debug.log*

@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:https": "next dev --experimental-https-key ./certs/key.pem --experimental-https-cert ./certs/cert.pem",
     "build": "next build",
-    "start": "next start",
+    "start": "node --import tsx server.ts",
+    "start:http": "next start",
     "lint": "eslint",
     "db:seed": "npx tsx prisma/seed.ts",
     "db:setup": "npx prisma migrate deploy && npm run db:seed"
