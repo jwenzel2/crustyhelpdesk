@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createCommentSchema } from "@/lib/validators";
+import { notifyTicketUpdated } from "@/lib/email";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -91,6 +92,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       author: { select: { displayName: true, role: true } },
     },
   });
+
+  // Notify client when a staff member posts an update (not the client's own comments)
+  if (role !== "CLIENT" && ticket.createdById !== userId) {
+    const authorName = comment.author?.displayName ?? "Staff";
+    notifyTicketUpdated({
+      id: ticket.id,
+      title: ticket.title,
+      createdById: ticket.createdById,
+      updateDescription: `New update from ${authorName}: ${parsed.data.body.slice(0, 200)}`,
+    }).catch(() => {});
+  }
 
   return NextResponse.json(comment, { status: 201 });
 }

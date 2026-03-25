@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { updateTicketSchema } from "@/lib/validators";
+import { notifyTicketUpdated } from "@/lib/email";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -161,6 +162,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       category: { select: { id: true, name: true } },
     },
   });
+
+  // Notify the client if status changed
+  if (data.status && data.status !== existing.status) {
+    const statusLabel = String(data.status).replace(/_/g, " ");
+    notifyTicketUpdated({
+      id: ticket.id,
+      title: ticket.title,
+      createdById: existing.createdById,
+      updateDescription: `Status changed to ${statusLabel}.`,
+    }).catch(() => {});
+  }
 
   return NextResponse.json(ticket);
 }

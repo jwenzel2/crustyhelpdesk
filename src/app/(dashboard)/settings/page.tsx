@@ -35,12 +35,13 @@ const emptyUserForm: UserForm = {
   role: "CLIENT",
 };
 
-type Tab = "users" | "categories" | "site";
+type Tab = "users" | "categories" | "site" | "email";
 
 const TAB_LABELS: Record<Tab, string> = {
   users: "Users",
   categories: "Categories",
   site: "Site",
+  email: "Email",
 };
 
 // ─── Component ────────────────────────────────────────────────
@@ -54,7 +55,7 @@ export default function SettingsPage() {
 
       {/* Tab bar */}
       <div className="flex border-b border-gray-200 mb-6">
-        {(["users", "categories", "site"] as Tab[]).map((t) => (
+        {(["users", "categories", "site", "email"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -72,6 +73,7 @@ export default function SettingsPage() {
       {tab === "users" && <UsersTab />}
       {tab === "categories" && <CategoriesTab />}
       {tab === "site" && <SiteTab />}
+      {tab === "email" && <EmailTab />}
     </div>
   );
 }
@@ -597,8 +599,9 @@ function CategoriesTab() {
 // ─── Site Tab ─────────────────────────────────────────────────
 
 function SiteTab() {
-  const { siteName, refreshSiteSettings } = useSiteSettings();
+  const { siteName, siteUrl, refreshSiteSettings } = useSiteSettings();
   const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -609,10 +612,13 @@ function SiteTab() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.siteName) setName(data.siteName);
+        if (data?.siteUrl) setUrl(data.siteUrl);
       })
       .catch(() => setError("Failed to load settings."))
       .finally(() => setLoading(false));
   }, []);
+
+  const hasChanges = name !== siteName || url !== siteUrl;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -624,7 +630,7 @@ function SiteTab() {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteName: name }),
+        body: JSON.stringify({ siteName: name, siteUrl: url }),
       });
 
       if (!res.ok) {
@@ -632,7 +638,7 @@ function SiteTab() {
         throw new Error(data.error || "Failed to update settings");
       }
 
-      setSuccess("Site name updated.");
+      setSuccess("Settings updated.");
       refreshSiteSettings();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -683,13 +689,315 @@ function SiteTab() {
               Displayed in the sidebar, login page, and browser tab.
             </p>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Site URL
+            </label>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-black"
+              maxLength={255}
+              placeholder="https://localhost:3000"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              The base URL for the app (e.g. https://help.example.com). Used for agent connections and link generation. Leave blank to use the current host.
+            </p>
+          </div>
           <button
             type="submit"
-            disabled={submitting || name === siteName}
+            disabled={submitting || !hasChanges}
             className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
           >
             {submitting ? "Saving..." : "Save"}
           </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Email Tab ───────────────────────────────────────────────
+
+interface SmtpForm {
+  smtpEnabled: boolean;
+  smtpHost: string;
+  smtpPort: string;
+  smtpSecure: boolean;
+  smtpUser: string;
+  smtpPass: string;
+  smtpFrom: string;
+}
+
+const emptySmtpForm: SmtpForm = {
+  smtpEnabled: false,
+  smtpHost: "",
+  smtpPort: "587",
+  smtpSecure: false,
+  smtpUser: "",
+  smtpPass: "",
+  smtpFrom: "",
+};
+
+function EmailTab() {
+  const [form, setForm] = useState<SmtpForm>(emptySmtpForm);
+  const [saved, setSaved] = useState<SmtpForm>(emptySmtpForm);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.smtp) {
+          const f: SmtpForm = {
+            smtpEnabled: data.smtp.smtpEnabled ?? false,
+            smtpHost: data.smtp.smtpHost ?? "",
+            smtpPort: String(data.smtp.smtpPort ?? 587),
+            smtpSecure: data.smtp.smtpSecure ?? false,
+            smtpUser: data.smtp.smtpUser ?? "",
+            smtpPass: data.smtp.smtpPass ?? "",
+            smtpFrom: data.smtp.smtpFrom ?? "",
+          };
+          setForm(f);
+          setSaved(f);
+        }
+      })
+      .catch(() => setError("Failed to load SMTP settings."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const hasChanges = JSON.stringify(form) !== JSON.stringify(saved);
+
+  function updateField<K extends keyof SmtpForm>(key: K, value: SmtpForm[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smtp: {
+            smtpEnabled: form.smtpEnabled,
+            smtpHost: form.smtpHost,
+            smtpPort: parseInt(form.smtpPort, 10),
+            smtpSecure: form.smtpSecure,
+            smtpUser: form.smtpUser,
+            smtpPass: form.smtpPass,
+            smtpFrom: form.smtpFrom,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save SMTP settings");
+      }
+
+      setSaved({ ...form });
+      setSuccess("SMTP settings saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const res = await fetch("/api/settings/smtp-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smtpHost: form.smtpHost,
+          smtpPort: parseInt(form.smtpPort, 10),
+          smtpSecure: form.smtpSecure,
+          smtpUser: form.smtpUser,
+          smtpPass: form.smtpPass,
+          smtpFrom: form.smtpFrom,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Connection test failed");
+      }
+
+      setSuccess("SMTP connection successful!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Connection test failed");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <p className="text-gray-500">Loading SMTP settings...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        Email Notifications (SMTP)
+      </h2>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-4">
+          {success}
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <form onSubmit={handleSave} className="space-y-4">
+          {/* Enable toggle */}
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.smtpEnabled}
+                onChange={(e) => updateField("smtpEnabled", e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+            <span className="text-sm font-medium text-gray-700">
+              Enable email notifications
+            </span>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            When enabled, clients receive email notifications when their tickets
+            are created and when there are updates.
+          </p>
+
+          {/* SMTP fields */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                SMTP Host
+              </label>
+              <input
+                type="text"
+                value={form.smtpHost}
+                onChange={(e) => updateField("smtpHost", e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-black"
+                placeholder="smtp.example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                SMTP Port
+              </label>
+              <input
+                type="number"
+                value={form.smtpPort}
+                onChange={(e) => updateField("smtpPort", e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-black"
+                placeholder="587"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="smtpSecure"
+              checked={form.smtpSecure}
+              onChange={(e) => updateField("smtpSecure", e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            <label
+              htmlFor="smtpSecure"
+              className="text-sm font-medium text-gray-700"
+            >
+              Use SSL/TLS (port 465). Leave unchecked for STARTTLS (port 587).
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Username
+              </label>
+              <input
+                type="text"
+                value={form.smtpUser}
+                onChange={(e) => updateField("smtpUser", e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-black"
+                placeholder="user@example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                value={form.smtpPass}
+                onChange={(e) => updateField("smtpPass", e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-black"
+                placeholder="••••••••"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              From Address
+            </label>
+            <input
+              type="text"
+              value={form.smtpFrom}
+              onChange={(e) => updateField("smtpFrom", e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-black"
+              placeholder='"CrustyHelpdesk" <noreply@example.com>'
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              The sender address for outgoing notification emails.
+            </p>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={submitting || !hasChanges}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={testing || !form.smtpHost}
+              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-300 disabled:opacity-50"
+            >
+              {testing ? "Testing..." : "Test Connection"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

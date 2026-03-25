@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createTicketSchema } from "@/lib/validators";
+import { notifyTicketCreated } from "@/lib/email";
 
-// GET /api/tickets — list tickets filtered by role
-export async function GET() {
+// GET /api/tickets — list tickets filtered by role, tab, and search
+export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -12,41 +13,67 @@ export async function GET() {
 
   const role = (session.user as { role?: string }).role;
   const userId = session.user.id;
+  const tab = request.nextUrl.searchParams.get("status") || "open";
+  const search = request.nextUrl.searchParams.get("search")?.trim() || "";
 
-  let where = {};
+  const isClosed = tab === "closed";
+  const statusFilter = isClosed ? { status: "CLOSED" as const } : { status: { not: "CLOSED" as const } };
 
-  switch (role) {
-    case "CLIENT":
-      // Only their own tickets
-      where = { createdById: userId };
-      break;
-    case "LEVEL_1":
-      // All open/in-progress tickets at escalation level 1, plus escalated tickets heading to L2
-      where = { escalationLevel: 1 };
-      break;
-    case "LEVEL_2":
-      // Tickets assigned to them OR escalated to level 2
-      where = {
-        OR: [
-          { assignedToId: userId },
-          { escalationLevel: 2, status: "ESCALATED" },
-        ],
-      };
-      break;
-    case "LEVEL_3":
-      // Tickets assigned to them OR escalated to level 3
-      where = {
-        OR: [
-          { assignedToId: userId },
-          { escalationLevel: 3, status: "ESCALATED" },
-        ],
-      };
-      break;
-    case "ADMIN":
-      // All tickets
-      where = {};
-      break;
+  // Build role-based filter
+  let roleFilter = {};
+  if (isClosed) {
+    // Closed tab: clients see only their own, staff/admin see all closed tickets
+    if (role === "CLIENT") {
+      roleFilter = { createdById: userId };
+    }
+    // Techs and admins see all closed tickets for knowledge sharing
+  } else {
+    // Open tab: existing role-based filtering
+    switch (role) {
+      case "CLIENT":
+        roleFilter = { createdById: userId };
+        break;
+      case "LEVEL_1":
+        roleFilter = { escalationLevel: 1 };
+        break;
+      case "LEVEL_2":
+        roleFilter = {
+          OR: [
+            { assignedToId: userId },
+            { escalationLevel: 2, status: "ESCALATED" },
+          ],
+        };
+        break;
+      case "LEVEL_3":
+        roleFilter = {
+          OR: [
+            { assignedToId: userId },
+            { escalationLevel: 3, status: "ESCALATED" },
+          ],
+        };
+        break;
+      case "ADMIN":
+        roleFilter = {};
+        break;
+    }
   }
+
+  // Build search filter (staff/admin only)
+  let searchFilter = {};
+  if (search && role !== "CLIENT") {
+    searchFilter = {
+      OR: [
+        { title: { contains: search } },
+        { description: { contains: search } },
+      ],
+    };
+  }
+
+  const where = {
+    AND: [statusFilter, roleFilter, searchFilter].filter(
+      (f) => Object.keys(f).length > 0
+    ),
+  };
 
   const tickets = await prisma.ticket.findMany({
     where,
@@ -99,6 +126,13 @@ export async function POST(request: NextRequest) {
       priority,
     },
   });
+
+  // Fire-and-forget email notification
+  notifyTicketCreated({
+    id: ticket.id,
+    title: ticket.title,
+    createdById: ticket.createdById,
+  }).catch(() => {});
 
   return NextResponse.json(ticket, { status: 201 });
 }
